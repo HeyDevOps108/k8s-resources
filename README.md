@@ -1,108 +1,91 @@
-EKS INSTALLATION & INITIAL SETUP – STEP BY STEP (AWS EKS)
+# Project Name
+EKS-based Kubernetes Deployment (Learning / Non-Prod)
 
-================================================
-PREREQUISITES (ON MASTER / JENKINS SERVER)
-================================================
+==================================================
+1. PROJECT OVERVIEW
+==================================================
 
-1. Server must have:
-   - Internet access
-   - IAM role OR AWS access keys with EKS permissions
+This project demonstrates a real-world Kubernetes setup on AWS EKS.
+It covers cluster creation, nodegroups, namespaces, application deployment,
+and CI/CD integration using Jenkins.
 
-2. Check OS user:
-   whoami
+This setup is for learning and non-production purposes.
 
-================================================
-INSTALL AWS CLI (v2)
-================================================
+--------------------------------------------------
 
-curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-sudo apt update
-sudo apt install -y unzip
-unzip awscliv2.zip
-sudo ./aws/install
+2. ARCHITECTURE OVERVIEW
+--------------------------------------------------
 
-Verify:
-aws --version
+- AWS EKS Cluster
+- Managed Node Group (EC2)
+- Kubernetes Namespaces (environment-based)
+- Application deployed as Kubernetes Deployment
+- CI/CD via Jenkins
+- Future: Ingress + ALB
 
-================================================
-CONFIGURE AWS ACCESS
-================================================
+--------------------------------------------------
 
-aws configure
-- Access Key
-- Secret Key
-- Region: us-east-1
-- Output: json
+3. PREREQUISITES
+--------------------------------------------------
 
-Verify:
-aws sts get-caller-identity
+- AWS Account
+- IAM permissions for EKS, EC2, VPC
+- EC2 server for:
+  - Jenkins
+  - kubectl
+  - aws cli
+  - eksctl
+- Internet access from EC2
 
-================================================
-INSTALL kubectl
-================================================
+--------------------------------------------------
 
-curl -LO https://storage.googleapis.com/kubernetes-release/release/`curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt`/bin/linux/amd64/kubectl
-chmod +x kubectl
-sudo mv kubectl /usr/local/bin/
+4. TOOLS & VERSIONS
+--------------------------------------------------
 
-Verify:
-kubectl version --client
+- AWS CLI v2
+- kubectl
+- eksctl
+- Jenkins
+- Docker
+- Kubernetes (EKS v1.29)
 
-================================================
-INSTALL eksctl
-================================================
+--------------------------------------------------
 
-curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
-sudo mv /tmp/eksctl /usr/local/bin
+5. AWS EKS CLUSTER SETUP
+--------------------------------------------------
 
-Verify:
-eksctl version
+Cluster Name: cndevcorp5
+Region: us-east-1
 
-================================================
-CREATE EKS CLUSTER (CONTROL PLANE)
-================================================
+Steps:
+1. Create EKS cluster using AWS Console
+2. Enable Public + Private endpoint access
+3. Select all public and private subnets
+4. Disable observability (for learning)
+5. Wait until cluster status is ACTIVE
 
-(Using AWS Console – Recommended)
+--------------------------------------------------
 
-EKS → Create Cluster
-- Cluster name: cndevcorp5
-- Kubernetes version: 1.29
-- Endpoint access: Public + Private
-- Select all public + private subnets
-- Observability: Disabled
-- Add-ons: Default
+6. KUBECONFIG SETUP
+--------------------------------------------------
 
-Wait until status = ACTIVE
-
-================================================
-CONFIGURE kubeconfig
-================================================
-
+Command used:
 aws eks update-kubeconfig --region us-east-1 --name cndevcorp5
 
-Verify:
+Verification:
 kubectl cluster-info
-kubectl get nodes   (should show: No resources found)
+kubectl get nodes
 
-================================================
-FIX SECURITY GROUP (IF kubectl TIMES OUT)
-================================================
+--------------------------------------------------
 
-EKS → Cluster → Networking
-- Find Cluster Security Group
+7. NODEGROUP SETUP
+--------------------------------------------------
 
-Add inbound rule:
-- HTTPS (443)
-- Source: Security Group of master-tools-server
+Nodegroup Name: fsgbu-obcbcs-preprod
+Instance Type: t3.medium
+Desired Nodes: 2
 
-Ensure VPC settings:
-- DNS resolution: Enabled
-- DNS hostnames: Enabled
-
-================================================
-CREATE NODEGROUP (SIMPLE COMMAND)
-================================================
-
+Command used:
 eksctl create nodegroup \
   --cluster cndevcorp5 \
   --region us-east-1 \
@@ -113,22 +96,30 @@ eksctl create nodegroup \
   --nodes-max 2 \
   --managed
 
-Verify:
-kubectl get nodes
+--------------------------------------------------
 
-================================================
-LABEL NODES (OPTIONAL – FOR NODEGROUP LOGIC)
-================================================
+8. NODE LABELING (OPTIONAL)
+--------------------------------------------------
 
-kubectl label node <node-name> nodegroup=fsgbu-obcbcs-preprod env=preprod
+Nodes are labeled for logical grouping.
 
-Verify:
-kubectl get nodes --show-labels
+Example:
+nodegroup=fsgbu-obcbcs-preprod
+env=preprod
 
-================================================
-CREATE SUBNAMESPACE (SIMPLE)
-================================================
+Used for nodeSelector in deployments.
 
+--------------------------------------------------
+
+9. NAMESPACE STRUCTURE
+--------------------------------------------------
+
+Namespaces follow environment-based naming.
+
+Example:
+fsgbu-obcbcs-preprod--foundation
+
+Namespace YAML:
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -137,48 +128,76 @@ metadata:
     env: preprod
     nodegroup: fsgbu-obcbcs-preprod
 
-Apply:
-kubectl apply -f namespace.yaml
+--------------------------------------------------
 
-================================================
-IMPORTANT JENKINS FIX (VERY IMPORTANT)
-================================================
+10. APPLICATION DEPLOYMENT
+--------------------------------------------------
 
-Whenever cluster is recreated, kubeconfig changes.
+- Application runs inside Kubernetes as a Deployment
+- Service type: ClusterIP
+- Exposed later using Ingress
 
-Copy kubeconfig to jenkins user:
+Key files:
+- deployment.yaml
+- service.yaml
 
-sudo mkdir -p /var/lib/jenkins/.kube
-sudo cp ~/.kube/config /var/lib/jenkins/.kube/config
-sudo chown -R jenkins:jenkins /var/lib/jenkins/.kube
+--------------------------------------------------
 
-Verify:
-sudo -u jenkins kubectl cluster-info
+11. CI/CD WITH JENKINS
+--------------------------------------------------
 
-================================================
-COMMON ISSUES & FIXES
-================================================
+Jenkins is used to:
+- Build Docker image
+- Push image to ECR
+- Apply Kubernetes manifests using kubectl
 
-1. kubectl openapi / DNS error
-   → Old kubeconfig pointing to deleted cluster
-   → Fix: aws eks update-kubeconfig + copy to jenkins
+Important:
+Whenever EKS cluster is recreated, kubeconfig must be copied
+from ubuntu user to jenkins user.
 
-2. kubectl timeout to 10.x.x.x
-   → Private endpoint only
-   → Fix: Enable public endpoint or SG rule
+--------------------------------------------------
 
-3. kubectl apply fails in Jenkins but works in shell
-   → Jenkins using old kubeconfig
+12. COMMON ISSUES & FIXES
+--------------------------------------------------
 
-================================================
-IMPORTANT RULES
-================================================
+Issue: kubectl openapi / DNS error
+Fix: kubeconfig was pointing to old EKS endpoint
 
-- kubectl = Kubernetes objects only
-- eksctl / AWS CLI = Infrastructure (nodegroups, EC2)
-- NodeGroup CANNOT be created with kubectl
-- Namespace CAN be created with kubectl
+Issue: kubectl works for ubuntu but not jenkins
+Fix: copy ~/.kube/config to /var/lib/jenkins/.kube
 
-================================================
-END OF FILE
-================================================
+Issue: kubectl timeout to 10.x.x.x
+Fix: enable public endpoint or add SG rule
+
+--------------------------------------------------
+
+13. COST MANAGEMENT
+--------------------------------------------------
+
+- Nodegroups are scaled down or deleted when not in use
+- LoadBalancers are removed after testing
+- EKS control plane cost is minimal
+
+--------------------------------------------------
+
+14. FUTURE ENHANCEMENTS
+--------------------------------------------------
+
+- Ingress with AWS ALB
+- Path-based routing
+- HPA (Horizontal Pod Autoscaler)
+- Helm charts
+- Monitoring and logging
+
+--------------------------------------------------
+
+15. NOTES
+--------------------------------------------------
+
+- kubectl manages Kubernetes resources only
+- Nodegroups cannot be created using kubectl
+- eksctl or AWS Console is required for infra
+
+==================================================
+END OF README
+==================================================
