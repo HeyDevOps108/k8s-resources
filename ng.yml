@@ -1,0 +1,10 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+metadata:
+  name: cndevcorp5
+  region: us-east-1
+managedNodeGroups:
+  - name: fsgbu-obcbcs-preprod
+    labels:
+      env: preprod
+      nodegroup: fsgbu-obcbcs-preprod

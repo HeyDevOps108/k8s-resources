@@ -1,0 +1,10 @@
+cat <<EOF > 2.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: fsgbu-obcbcs-preprod--foundation
+  labels:
+    env: preprod
+    nodegroup: fsgbu-obcbcs-preprod
+    parent-nodegroup: fsgbu-obcbcs-preprod
+EOF
